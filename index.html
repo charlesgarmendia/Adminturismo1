@@ -121,7 +121,7 @@
             font-size: 1.8rem;
         }
         
-        /* ========== ESTADÍSTICAS - MODIFICADO ========== */
+        /* ========== ESTADÍSTICAS ========== */
         .dashboard-stats {
             display: flex;
             gap: 15px;
@@ -252,7 +252,7 @@
             font-weight: bold;
         }
         
-        /* ========== BOTONES DE TARJETA - MODIFICADO ========== */
+        /* ========== BOTONES DE TARJETA ========== */
         .botones-tarjeta {
             display: flex;
             gap: 8px;
@@ -458,6 +458,7 @@
     // ========== VARIABLES GLOBALES ==========
     let perfilEnEdicionId = null;
     let perfilEnEdicionNombre = "";
+    let esEdicionCompleta = false;
 
     // ========== MENÚ ENTRE SECCIONES ==========
     document.getElementById('btn-estadistica').addEventListener('click', () => {
@@ -489,7 +490,6 @@
                     let width = img.width;
                     let height = img.height;
                     
-                    // Redimensionar a máximo 1200px
                     if (width > 1200) {
                         height = (1200 * height) / width;
                         width = 1200;
@@ -500,7 +500,6 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Calidad 0.7 (balance entre tamaño y calidad)
                     const base64 = canvas.toDataURL('image/jpeg', 0.7);
                     resolve(base64);
                 };
@@ -551,7 +550,7 @@
         }
     };
 
-    // ========== PUBLICAR EN FIRESTORE (SIN DRIVE) ==========
+    // ========== PUBLICAR EN FIRESTORE - ÚNICA LÍNEA CORREGIDA ==========
     document.getElementById('btn-publicar').onclick = async () => {
         const nombreMuseo = document.getElementById('nombre-museo').value.trim();
         const descs = document.querySelectorAll('.desc-individual');
@@ -576,12 +575,15 @@
                 });
             }
 
-            if (perfilEnEdicionId) {
-                // MODO EDICIÓN COMPLETO - MODIFICADO
+            // ===== ÚNICA LÍNEA CORREGIDA =====
+            // ANTES: if (perfilEnEdicionId) {
+            // AHORA: 
+            if (perfilEnEdicionId && perfilEnEdicionId !== "") {
+                // MODO EDICIÓN - Actualizar perfil existente
                 const perfilRef = doc(db, "perfiles", perfilEnEdicionId);
                 
-                // Si es edición completa, reemplazamos todos los archivos
-                if (window.esEdicionCompleta) {
+                if (esEdicionCompleta) {
+                    // Edición completa - reemplazar todo
                     await updateDoc(perfilRef, {
                         nombre: nombreMuseo,
                         archivos: archivos,
@@ -589,19 +591,19 @@
                     });
                     alert(`✅ Perfil "${nombreMuseo}" actualizado completamente`);
                 } else {
-                    // Solo añadir archivos (comportamiento anterior)
+                    // Solo añadir archivos
                     const docSnap = await getDoc(perfilRef);
-                    const archivosPrevios = docSnap.data().archivos || [];
-                    
-                    await updateDoc(perfilRef, {
-                        archivos: [...archivosPrevios, ...archivos],
-                        fecha_edicion: new Date()
-                    });
-                    alert(`✅ Multimedia añadido a "${perfilEnEdicionNombre}"`);
+                    if (docSnap.exists()) {
+                        const archivosPrevios = docSnap.data().archivos || [];
+                        await updateDoc(perfilRef, {
+                            archivos: [...archivosPrevios, ...archivos],
+                            fecha_edicion: new Date()
+                        });
+                        alert(`✅ Multimedia añadido a "${perfilEnEdicionNombre}"`);
+                    }
                 }
-                salirModoEdicion();
             } else {
-                // NUEVO PERFIL
+                // NUEVO PERFIL - Crear nuevo documento
                 await addDoc(collection(db, "perfiles"), {
                     nombre: nombreMuseo,
                     archivos: archivos,
@@ -615,6 +617,9 @@
             document.getElementById('nombre-museo').value = '';
             document.getElementById('archivos').value = '';
             document.getElementById('lista-archivos-detallada').innerHTML = '';
+            
+            // Salir del modo edición
+            salirModoEdicion();
             
             // Cambiar a vista de estadísticas
             document.getElementById('btn-estadistica').click();
@@ -633,7 +638,6 @@
         try {
             const querySnapshot = await getDocs(query(collection(db, "perfiles"), orderBy("fecha", "desc")));
             
-            // Estadísticas generales
             let totalArchivos = 0;
             let totalFotos = 0;
             let totalVideos = 0;
@@ -650,7 +654,6 @@
             document.getElementById('total-fotos').innerText = totalFotos;
             document.getElementById('total-videos').innerText = totalVideos;
 
-            // Renderizar tarjetas - MODIFICADO (sin botón Ver)
             const contenedor = document.getElementById('contenedor-perfiles');
             let html = '';
             
@@ -694,11 +697,10 @@
 
     // ========== FUNCIONES DE LOS BOTONES ==========
     window.editarPerfilCompleto = (perfilId, nombrePerfil) => {
-        // Función para editar completamente el perfil
         salirModoEdicion();
         perfilEnEdicionId = perfilId;
         perfilEnEdicionNombre = nombrePerfil;
-        window.esEdicionCompleta = true;
+        esEdicionCompleta = true;
         
         document.getElementById('modo-edicion-msg').style.display = 'block';
         document.getElementById('editando-nombre').innerText = nombrePerfil;
@@ -706,20 +708,17 @@
         document.getElementById('titulo-form').innerHTML = 'Editando: ' + nombrePerfil;
         document.getElementById('nombre-museo').value = nombrePerfil;
         
-        // Limpiar archivos previos
         document.getElementById('archivos').value = '';
         document.getElementById('lista-archivos-detallada').innerHTML = '';
         
-        // Cambiar a sección de creación
         document.getElementById('btn-crear-perfil').click();
     };
 
     window.añadirArchivos = (perfilId, nombrePerfil) => {
-        // Función específica para añadir archivos
         salirModoEdicion();
         perfilEnEdicionId = perfilId;
         perfilEnEdicionNombre = nombrePerfil;
-        window.esEdicionCompleta = false;
+        esEdicionCompleta = false;
         
         document.getElementById('modo-edicion-msg').style.display = 'block';
         document.getElementById('editando-nombre').innerText = nombrePerfil;
@@ -727,7 +726,6 @@
         document.getElementById('titulo-form').innerHTML = 'Añadir archivos a: ' + nombrePerfil;
         document.getElementById('nombre-museo').value = nombrePerfil + ' (agregar más)';
         
-        // Cambiar a sección de creación
         document.getElementById('btn-crear-perfil').click();
     };
 
@@ -743,7 +741,7 @@
     window.salirModoEdicion = () => {
         perfilEnEdicionId = null;
         perfilEnEdicionNombre = "";
-        window.esEdicionCompleta = false;
+        esEdicionCompleta = false;
         document.getElementById('perfil-id-edicion').value = '';
         document.getElementById('modo-edicion-msg').style.display = 'none';
         document.getElementById('titulo-form').innerHTML = 'Crear Nuevo Museo';
@@ -752,12 +750,11 @@
         document.getElementById('lista-archivos-detallada').innerHTML = '';
     };
 
-    // ========== PWA INSTALL (SOLO WEB) ==========
+    // ========== PWA INSTALL ==========
     let promptInstala;
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         promptInstala = e;
-        // Solo mostrar si NO está en modo standalone
         if (!window.matchMedia('(display-mode: standalone)').matches) {
             document.getElementById('contenedor-instalar').style.display = 'block';
         }
@@ -773,12 +770,11 @@
         }
     };
 
-    // Ocultar botón si ya está instalado
     if (window.matchMedia('(display-mode: standalone)').matches) {
         document.getElementById('contenedor-instalar').style.display = 'none';
     }
 
-    // ========== SERVICE WORKER EMBEBIDO ==========
+    // ========== SERVICE WORKER ==========
     if ('serviceWorker' in navigator) {
         const swScript = `const C='falcon-admin-v2';const U=['.','https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'];self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(U))));self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));`;
         const blob = new Blob([swScript], { type: 'application/javascript' });
@@ -788,7 +784,6 @@
     // ========== INICIALIZAR ==========
     cargarPerfilesEstadistica();
     window.salirModoEdicion = salirModoEdicion;
-    window.esEdicionCompleta = false;
 </script>
 
 </body>
